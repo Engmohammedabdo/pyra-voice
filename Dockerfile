@@ -10,10 +10,8 @@ RUN cd server && npm ci --production
 COPY frontend/package.json frontend/package-lock.json* ./frontend/
 RUN cd frontend && npm ci
 
-# Copy backend source
+# Copy all source
 COPY server/ ./server/
-
-# Copy frontend source
 COPY frontend/ ./frontend/
 RUN mkdir -p frontend/public
 
@@ -21,13 +19,14 @@ RUN mkdir -p frontend/public
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN cd frontend && npm run build
 
-# Copy voice prompt
-COPY server/pyra-voice-prompt.md ./server/pyra-voice-prompt.md
+# Install root deps (http-proxy for WS proxying)
+COPY package.json ./
+RUN npm install --production
 
-# Start script
-COPY start.sh ./start.sh
-RUN chmod +x start.sh
+# Copy combined server + voice prompt
+COPY server.js ./
+COPY server/pyra-voice-prompt.md ./server/pyra-voice-prompt.md
 
 EXPOSE 3000
 
-CMD ["./start.sh"]
+CMD ["node", "server.js"]
