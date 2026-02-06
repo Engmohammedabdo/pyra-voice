@@ -8,13 +8,13 @@ const next = require('next');
 const path = require('path');
 
 const dev = process.env.NODE_ENV !== 'production';
-const FRONTEND_DIR = path.join(__dirname, 'frontend');
+const FRONTEND_DIR = __dirname;
 const BACKEND_PORT = parseInt(process.env.BACKEND_PORT || '3001');
 const PORT = parseInt(process.env.FRONTEND_PORT || '3000');
 
 // Start backend
 console.log('[Combined] Starting backend...');
-require('./server/src/index.js');
+require('./server/index.js');
 
 // Wait for backend to be ready, then start frontend
 setTimeout(async () => {

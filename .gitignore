@@ -1,24 +1,4 @@
-# Dependencies
 node_modules/
-
-# Environment (secrets)
+.next/
 .env
 .env.local
-.env.production
-
-# Build output
-.next/
-dist/
-out/
-
-# Logs
-*.log
-npm-debug.log*
-
-# OS
-.DS_Store
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/

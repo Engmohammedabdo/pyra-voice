@@ -3,12 +3,30 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "start": "node server.js"
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "node server.js",
+    "server": "node server/index.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.49.0",
+    "autoprefixer": "^10.4.17",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
     "http-proxy": "^1.18.1",
     "next": "^14.2.20",
+    "postcss": "^8.4.33",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^3.4.1",
+    "uuid": "^11.1.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/react": "18.3.28",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "5.9.3"
   }
 }

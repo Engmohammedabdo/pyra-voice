@@ -6,8 +6,7 @@ const GEMINI_MODEL = 'models/gemini-2.5-flash-native-audio-latest';
 
 // Load system prompt — try multiple locations for Docker + local dev
 const PROMPT_PATHS = [
-  path.join(__dirname, '..', '..', 'pyra-voice-prompt.md'),       // server/pyra-voice-prompt.md (Docker)
-  path.join(__dirname, '..', '..', '..', '..', '..', 'pyra-voice-prompt.md'), // workspace root (local dev)
+  path.join(__dirname, '..', '..', 'pyra-voice-prompt.md'),       // root (Docker + local)
   '/home/node/openclaw/pyra-voice-prompt.md',                      // absolute fallback
 ];
 
