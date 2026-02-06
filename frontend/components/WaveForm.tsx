@@ -36,7 +36,8 @@ export default function WaveForm({
           const x = i * barWidth + barWidth * 0.15;
           const bw = barWidth * 0.7;
           ctx.fillStyle = `${color}33`;
-          ctx.roundRect(x, height / 2 - 1, bw, 2, 1);
+          ctx.beginPath();
+          ctx.roundRect?.(x, height / 2 - 1, bw, 2, 1) ?? ctx.rect(x, height / 2 - 1, bw, 2);
           ctx.fill();
         }
         animRef.current = requestAnimationFrame(draw);
@@ -71,7 +72,7 @@ export default function WaveForm({
             ? `rgba(239, 68, 68, ${opacity})`
             : `rgba(108, 58, 237, ${opacity})`;
         ctx.beginPath();
-        ctx.roundRect(x, y, bw, barHeight, bw / 2);
+        ctx.roundRect?.(x, y, bw, barHeight, bw / 2) ?? ctx.rect(x, y, bw, barHeight);
         ctx.fill();
       }
 

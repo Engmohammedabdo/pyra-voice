@@ -11,7 +11,12 @@ const app = express();
 const server = http.createServer(app);
 
 // Middleware
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
+const corsOrigin = process.env.CORS_ORIGIN || '*';
+app.use(cors({ 
+  origin: corsOrigin === '*' ? '*' : corsOrigin.split(',').map(s => s.trim()),
+  methods: ['GET', 'POST', 'OPTIONS'],
+  credentials: true,
+}));
 app.use(express.json());
 
 // Health check
@@ -30,8 +35,20 @@ app.post('/api/simli/session', async (req, res) => {
   }
 });
 
-// WebSocket server
-const wss = new WebSocketServer({ server, path: '/ws' });
+// WebSocket server (noServer for manual upgrade handling behind reverse proxy)
+const wss = new WebSocketServer({ noServer: true });
+
+// Handle WebSocket upgrade (compatible with reverse proxies like Nginx/Coolify)
+server.on('upgrade', (request, socket, head) => {
+  const pathname = new URL(request.url, `http://${request.headers.host}`).pathname;
+  if (pathname === '/ws') {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
+    });
+  } else {
+    socket.destroy();
+  }
+});
 
 wss.on('connection', (ws, req) => {
   const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;

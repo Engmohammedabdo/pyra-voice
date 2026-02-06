@@ -7,6 +7,9 @@ RUN npm ci --production
 
 COPY . .
 
+# Copy voice prompt into the container
+COPY pyra-voice-prompt.md ./pyra-voice-prompt.md
+
 EXPOSE 3001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \

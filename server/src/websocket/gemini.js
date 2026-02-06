@@ -4,21 +4,24 @@ const path = require('path');
 
 const GEMINI_MODEL = 'models/gemini-2.5-flash-native-audio-latest';
 
-// Load system prompt
-let SYSTEM_PROMPT;
-try {
-  SYSTEM_PROMPT = fs.readFileSync(
-    path.join(__dirname, '..', '..', '..', '..', '..', 'pyra-voice-prompt.md'),
-    'utf-8'
-  );
-} catch {
-  // Fallback: try from workspace root
+// Load system prompt — try multiple locations for Docker + local dev
+const PROMPT_PATHS = [
+  path.join(__dirname, '..', '..', 'pyra-voice-prompt.md'),       // server/pyra-voice-prompt.md (Docker)
+  path.join(__dirname, '..', '..', '..', '..', '..', 'pyra-voice-prompt.md'), // workspace root (local dev)
+  '/home/node/openclaw/pyra-voice-prompt.md',                      // absolute fallback
+];
+
+let SYSTEM_PROMPT = '';
+for (const p of PROMPT_PATHS) {
   try {
-    SYSTEM_PROMPT = fs.readFileSync('/home/node/openclaw/pyra-voice-prompt.md', 'utf-8');
-  } catch {
-    SYSTEM_PROMPT = 'You are Pyra, a friendly AI voice assistant for Pyramedia, a Dubai-based marketing and AI company.';
-    console.warn('[Gemini] Could not load pyra-voice-prompt.md, using fallback prompt');
-  }
+    SYSTEM_PROMPT = fs.readFileSync(p, 'utf-8');
+    console.log(`[Gemini] Loaded system prompt from ${p}`);
+    break;
+  } catch { /* try next */ }
+}
+if (!SYSTEM_PROMPT) {
+  SYSTEM_PROMPT = 'You are Pyra, a friendly AI voice assistant for Pyramedia, a Dubai-based marketing and AI company. You speak Arabic and English. Keep responses short (1-2 sentences) since this is voice.';
+  console.warn('[Gemini] Could not load pyra-voice-prompt.md, using fallback prompt');
 }
 
 class GeminiLiveClient {
