@@ -38,7 +38,6 @@ async function saveConversation({ sessionId, startedAt, endedAt, audioChunksRece
       });
 
     if (error) {
-      // Table might not exist yet — log but don't crash
       console.warn('[Supabase] Insert error (table may not exist yet):', error.message);
     }
   } catch (err) {
@@ -46,29 +45,4 @@ async function saveConversation({ sessionId, startedAt, endedAt, audioChunksRece
   }
 }
 
-/**
- * Save a conversation message/transcript
- */
-async function saveTranscript({ sessionId, role, text }) {
-  const client = getClient();
-  if (!client) return;
-
-  try {
-    const { error } = await client
-      .from('pyra_voice_transcripts')
-      .insert({
-        session_id: sessionId,
-        role,
-        text,
-        created_at: new Date().toISOString(),
-      });
-
-    if (error) {
-      console.warn('[Supabase] Transcript insert error:', error.message);
-    }
-  } catch (err) {
-    console.warn('[Supabase] Transcript save failed:', err.message);
-  }
-}
-
-module.exports = { saveConversation, saveTranscript, getClient };
+module.exports = { saveConversation };
