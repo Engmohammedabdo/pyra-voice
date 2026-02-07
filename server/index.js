@@ -24,6 +24,19 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'pyra-voice-server', timestamp: new Date().toISOString() });
 });
 
+// Config check (non-sensitive) - helps diagnose deployment issues
+app.get('/health/config', (req, res) => {
+  const apiKey = process.env.GOOGLE_API_KEY;
+  res.json({
+    google_api_key: apiKey ? `${apiKey.substring(0, 6)}...${apiKey.substring(apiKey.length - 4)} (${apiKey.length} chars)` : 'NOT SET',
+    simli_api_key: process.env.SIMLI_API_KEY ? 'SET' : 'NOT SET',
+    simli_face_id: process.env.SIMLI_FACE_ID ? 'SET' : 'NOT SET',
+    supabase_url: process.env.SUPABASE_URL ? 'SET' : 'NOT SET',
+    node_env: process.env.NODE_ENV || 'not set',
+    backend_port: process.env.BACKEND_PORT || '3001 (default)',
+  });
+});
+
 // Simli session token endpoint
 app.post('/api/simli/session', async (req, res) => {
   try {

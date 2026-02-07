@@ -116,7 +116,16 @@ async function startConversation(ws, session) {
     console.log(`[Handler][${session.id}] Gemini connected and ready`);
   } catch (err) {
     console.error(`[Handler][${session.id}] Gemini connection failed:`, err.message);
-    sendToClient(ws, { type: 'error', message: 'Failed to connect to AI service' });
+    // Provide more specific error messages to the client
+    let clientMsg = 'Failed to connect to AI service';
+    if (err.message.includes('not configured')) {
+      clientMsg = 'AI service not configured. Please set GOOGLE_API_KEY.';
+    } else if (err.message.includes('403') || err.message.includes('PERMISSION_DENIED')) {
+      clientMsg = 'API key invalid or Generative Language API not enabled.';
+    } else if (err.message.includes('timeout')) {
+      clientMsg = 'AI service connection timed out. Please try again.';
+    }
+    sendToClient(ws, { type: 'error', message: clientMsg });
   }
 }
 

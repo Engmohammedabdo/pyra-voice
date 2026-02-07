@@ -44,9 +44,12 @@ class GeminiLiveClient {
     return new Promise((resolve, reject) => {
       const apiKey = process.env.GOOGLE_API_KEY;
       if (!apiKey) {
+        console.error(`[Gemini][${this.sessionId}] GOOGLE_API_KEY is not set in environment variables`);
         reject(new Error('GOOGLE_API_KEY not configured'));
         return;
       }
+
+      console.log(`[Gemini][${this.sessionId}] Connecting with API key: ${apiKey.substring(0, 6)}...${apiKey.substring(apiKey.length - 4)}`);
 
       const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${apiKey}`;
 
