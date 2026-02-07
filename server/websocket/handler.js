@@ -159,7 +159,8 @@ async function startConversation(ws, session) {
   };
 
   gemini.onFunctionCall = async (call) => {
-    console.log(`[Handler][${session.id}] Processing function call: ${call.name}`);
+    const callId = call.id || call.name;
+    console.log(`[Handler][${session.id}] Processing function call: ${call.name} (id=${callId})`);
 
     try {
       const result = await callN8nWebhook({
@@ -169,12 +170,12 @@ async function startConversation(ws, session) {
 
       // Send the result back to Gemini so it can formulate a voice response
       const resultText = result.status || result.result || result.error || JSON.stringify(result);
-      gemini.sendToolResponse(call.name, resultText);
+      gemini.sendToolResponse(callId, resultText);
 
-      console.log(`[Handler][${session.id}] Function call completed: ${call.name}`);
+      console.log(`[Handler][${session.id}] Function call completed: ${call.name} (id=${callId}) → "${resultText.substring(0, 100)}"`);
     } catch (err) {
       console.error(`[Handler][${session.id}] Function call error:`, err.message);
-      gemini.sendToolResponse(call.name, 'Sorry, the action could not be completed due to a technical error.');
+      gemini.sendToolResponse(callId, 'Sorry, the action could not be completed due to a technical error.');
     }
   };
 

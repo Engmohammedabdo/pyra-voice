@@ -235,10 +235,12 @@ class GeminiLiveClient {
       return;
     }
 
+    const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
+
     const message = {
       toolResponse: {
         functionResponses: [{
-          response: { result: typeof result === 'string' ? result : JSON.stringify(result) },
+          response: { result: resultStr },
           id: functionCallId
         }]
       }
@@ -246,7 +248,7 @@ class GeminiLiveClient {
 
     try {
       this.ws.send(JSON.stringify(message));
-      console.log(`[Gemini][${this.sessionId}] Tool response sent for ${functionCallId}`);
+      console.log(`[Gemini][${this.sessionId}] ✅ Tool response sent (id=${functionCallId}, result="${resultStr.substring(0, 120)}")`);
     } catch (err) {
       console.error(`[Gemini][${this.sessionId}] Tool response send error:`, err.message);
     }
