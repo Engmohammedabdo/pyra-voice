@@ -22,11 +22,14 @@ ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
 COPY --from=builder /app/server ./server
 COPY --from=builder /app/server.js ./
 COPY --from=builder /app/next.config.js ./
-COPY --from=builder /app/pyra-voice-prompt.md ./
+COPY --from=builder /app/pyra-voice-prompt.md* ./
+
+# Copy public dir only if it exists (optional static assets)
+RUN mkdir -p /app/public
+COPY --from=builder /app/public/. ./public/
 
 # Non-root user for security
 RUN addgroup --system --gid 1001 nodejs && \
