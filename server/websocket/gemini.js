@@ -2,7 +2,7 @@ const WebSocket = require('ws');
 const fs = require('fs');
 const path = require('path');
 
-const GEMINI_MODEL = 'models/gemini-2.5-flash-native-audio-latest';
+const GEMINI_MODEL = 'models/gemini-2.5-flash-native-audio-preview-12-2025';
 
 // Load system prompt - try multiple locations for Docker + local dev
 const PROMPT_PATHS = [
@@ -158,7 +158,7 @@ class GeminiLiveClient {
         media_chunks: [
           {
             data: base64PcmData,
-            mime_type: 'audio/pcm',
+            mime_type: 'audio/pcm;rate=16000',
           },
         ],
       },
