@@ -6,6 +6,7 @@ const cors = require('cors');
 const { WebSocketServer } = require('ws');
 const { handleConnection } = require('./websocket/handler');
 const { createSimliSession } = require('./simli/client');
+const { saveLead } = require('./memory/supabase');
 
 const app = express();
 const server = http.createServer(app);
@@ -46,6 +47,35 @@ app.post('/api/simli/session', async (req, res) => {
     console.error('[Simli] Session creation failed:', err.message);
     res.status(500).json({ error: 'Failed to create Simli session' });
   }
+});
+
+// Lead capture endpoint
+app.post('/api/leads', async (req, res) => {
+  try {
+    const { sessionId, name, email, phone, businessType, interest } = req.body;
+
+    if (!name && !email && !phone) {
+      return res.status(400).json({ error: 'At least one contact field required' });
+    }
+
+    await saveLead({ sessionId, name, email, phone, businessType, interest });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Leads] Save failed:', err.message);
+    res.status(500).json({ error: 'Failed to save lead' });
+  }
+});
+
+// Simli config for frontend
+app.get('/api/simli/config', (req, res) => {
+  const apiKey = process.env.SIMLI_API_KEY;
+  const faceId = process.env.SIMLI_FACE_ID;
+
+  if (!apiKey || !faceId) {
+    return res.status(404).json({ configured: false });
+  }
+
+  res.json({ configured: true, apiKey, faceId });
 });
 
 // WebSocket server (noServer for manual upgrade handling behind reverse proxy)

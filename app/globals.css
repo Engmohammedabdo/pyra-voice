@@ -60,3 +60,18 @@ body {
   outline: 2px solid var(--brand-primary);
   outline-offset: 2px;
 }
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slideUp {
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}

@@ -1,6 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const { GeminiLiveClient } = require('./gemini');
-const { saveConversation } = require('../memory/supabase');
+const { saveConversation, saveTranscripts } = require('../memory/supabase');
 
 const sessions = new Map();
 
@@ -14,6 +14,7 @@ function handleConnection(ws) {
     startedAt: null,
     audioChunksReceived: 0,
     audioChunksSent: 0,
+    transcripts: [],
   };
   sessions.set(sessionId, session);
 
@@ -96,6 +97,11 @@ async function startConversation(ws, session) {
 
   gemini.onTranscript = (text) => {
     sendToClient(ws, { type: 'transcript', text });
+    session.transcripts.push({
+      role: 'assistant',
+      text: text,
+      created_at: new Date().toISOString(),
+    });
   };
 
   gemini.onTurnComplete = () => {
@@ -148,11 +154,20 @@ async function endConversation(session) {
     } catch (err) {
       console.error(`[Handler][${session.id}] Failed to save conversation:`, err.message);
     }
+
+    // Save transcripts
+    try {
+      await saveTranscripts(session.id, session.transcripts);
+      console.log(`[Handler][${session.id}] ${session.transcripts.length} transcript(s) saved`);
+    } catch (err) {
+      console.error(`[Handler][${session.id}] Failed to save transcripts:`, err.message);
+    }
   }
 
   session.startedAt = null;
   session.audioChunksReceived = 0;
   session.audioChunksSent = 0;
+  session.transcripts = [];
 }
 
 function cleanup(session) {

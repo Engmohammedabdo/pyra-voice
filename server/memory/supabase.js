@@ -45,4 +45,63 @@ async function saveConversation({ sessionId, startedAt, endedAt, audioChunksRece
   }
 }
 
-module.exports = { saveConversation };
+/**
+ * Save transcripts for a session
+ */
+async function saveTranscripts(sessionId, transcripts) {
+  const client = getClient();
+  if (!client) return;
+  if (!transcripts || transcripts.length === 0) return;
+
+  try {
+    const rows = transcripts.map(t => ({
+      session_id: sessionId,
+      role: t.role,
+      text: t.text,
+      created_at: t.created_at,
+    }));
+
+    const { error } = await client
+      .from('pyra_voice_transcripts')
+      .insert(rows);
+
+    if (error) {
+      console.warn('[Supabase] Transcript insert error:', error.message);
+    } else {
+      console.log(`[Supabase] Saved ${rows.length} transcript(s) for session ${sessionId}`);
+    }
+  } catch (err) {
+    console.warn('[Supabase] Transcript save failed:', err.message);
+  }
+}
+
+/**
+ * Save a lead
+ */
+async function saveLead({ sessionId, name, email, phone, businessType, interest }) {
+  const client = getClient();
+  if (!client) return;
+
+  try {
+    const { error } = await client
+      .from('pyra_voice_leads')
+      .insert({
+        session_id: sessionId || null,
+        name: name || null,
+        email: email || null,
+        phone: phone || null,
+        business_type: businessType || null,
+        interest: interest || null,
+      });
+
+    if (error) {
+      console.warn('[Supabase] Lead insert error:', error.message);
+    } else {
+      console.log('[Supabase] Lead saved successfully');
+    }
+  } catch (err) {
+    console.warn('[Supabase] Lead save failed:', err.message);
+  }
+}
+
+module.exports = { saveConversation, saveTranscripts, saveLead };
