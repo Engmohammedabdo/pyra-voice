@@ -130,13 +130,13 @@ class GeminiLiveClient {
           functionDeclarations: [
             {
               name: 'execute_action',
-              description: 'Execute a business action through Pyramedia automation system. Use for booking meetings, sending emails, web search, searching company files, creating documents, generating marketing images, sending WhatsApp messages, or notifying the admin.',
+              description: 'Execute a business action through Pyramedia automation system. Use for booking meetings, sending emails, web search, searching company files, creating documents/spreadsheets, generating marketing images, sending WhatsApp messages, searching Notion, or notifying the admin.',
               parameters: {
                 type: 'OBJECT',
                 properties: {
                   action: {
                     type: 'STRING',
-                    enum: ['book_meeting', 'check_calendar', 'send_email', 'search_web', 'search_files', 'create_document', 'notify_admin', 'generate_image', 'send_whatsapp_client', 'notify_proposal'],
+                    enum: ['book_meeting', 'check_calendar', 'send_email', 'search_web', 'search_files', 'create_document', 'create_spreadsheet', 'search_notion', 'create_folder', 'upload_file', 'notify_admin', 'generate_image', 'send_whatsapp_client', 'notify_proposal'],
                     description: 'The type of action to execute'
                   },
                   message: {
