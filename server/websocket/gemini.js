@@ -111,13 +111,13 @@ class GeminiLiveClient {
           functionDeclarations: [
             {
               name: 'execute_action',
-              description: 'Execute a business action through Pyramedia automation system. Use for booking meetings, sending emails, web search, searching company files, creating documents, or sending WhatsApp notifications to admin.',
+              description: 'Execute a business action through Pyramedia automation system. Use for booking meetings, sending emails, web search, searching company files, creating documents, generating marketing images, sending WhatsApp messages, or notifying the admin.',
               parameters: {
                 type: 'OBJECT',
                 properties: {
                   action: {
                     type: 'STRING',
-                    enum: ['book_meeting', 'check_calendar', 'send_email', 'search_web', 'search_files', 'create_document', 'notify_admin'],
+                    enum: ['book_meeting', 'check_calendar', 'send_email', 'search_web', 'search_files', 'create_document', 'notify_admin', 'generate_image', 'send_whatsapp_client', 'notify_proposal'],
                     description: 'The type of action to execute'
                   },
                   message: {
@@ -130,6 +130,7 @@ class GeminiLiveClient {
                   date: { type: 'STRING', description: 'Date in YYYY-MM-DD format if relevant' },
                   time: { type: 'STRING', description: 'Time in HH:MM format if relevant' },
                   subject: { type: 'STRING', description: 'Email subject if relevant' },
+                  image_prompt: { type: 'STRING', description: 'Detailed English description for AI image generation' },
                 },
                 required: ['action', 'message']
               }
