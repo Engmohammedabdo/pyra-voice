@@ -85,7 +85,7 @@ function waitForBackend(port, maxAttempts = 30) {
 
     const server = http.createServer((req, res) => {
       const url = req.url;
-      if (url.startsWith('/api/') || url === '/health') {
+      if (url.startsWith('/api/') || url.startsWith('/health')) {
         proxy.web(req, res);
         return;
       }
