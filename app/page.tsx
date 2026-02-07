@@ -19,6 +19,7 @@ export default function Home() {
 
   // Simli avatar integration
   const simli = useSimli();
+  const simliRefsRef = useRef<{ video: HTMLVideoElement; audio: HTMLAudioElement } | null>(null);
 
   const simliAudioCallback = useCallback((data: Uint8Array) => {
     simli.sendAudioData(data);
@@ -48,10 +49,19 @@ export default function Home() {
     }
   }, [session.state, session.sessionId]);
 
-  // Simli avatar initialization
-  const handleSimliReady = useCallback(async (videoEl: HTMLVideoElement, audioEl: HTMLAudioElement) => {
-    await simli.initialize(videoEl, audioEl);
-  }, [simli]);
+  // Store Simli DOM refs (does NOT start Simli yet — deferred to user click)
+  const handleSimliRefsReady = useCallback((videoEl: HTMLVideoElement, audioEl: HTMLAudioElement) => {
+    simliRefsRef.current = { video: videoEl, audio: audioEl };
+  }, []);
+
+  // Wrap startSession to initialize Simli on user gesture (fixes AudioContext autoplay)
+  const handleStart = useCallback(async () => {
+    // Initialize Simli on first user click (user gesture satisfies autoplay policy)
+    if (simli.isAvailable && !simli.isReady && simliRefsRef.current) {
+      simli.initialize(simliRefsRef.current.video, simliRefsRef.current.audio);
+    }
+    session.startSession();
+  }, [simli, session]);
 
   const isAr = lang === 'ar';
 
@@ -69,7 +79,7 @@ export default function Home() {
             <SimliAvatar
               state={session.state}
               isSpeaking={session.isPlaying}
-              onReady={handleSimliReady}
+              onRefsReady={handleSimliRefsReady}
             />
           ) : (
             <Avatar state={session.state} isSpeaking={session.isPlaying} />
@@ -111,7 +121,7 @@ export default function Home() {
         <div className="mb-4">
           <VoiceButton
             state={session.state}
-            onStart={session.startSession}
+            onStart={handleStart}
             onStop={session.endSession}
             onRetry={session.retry}
             lang={lang}

@@ -6,22 +6,23 @@ import { SessionState } from '../lib/constants';
 interface SimliAvatarProps {
   state: SessionState;
   isSpeaking: boolean;
-  onReady: (videoEl: HTMLVideoElement, audioEl: HTMLAudioElement) => void;
+  onRefsReady: (videoEl: HTMLVideoElement, audioEl: HTMLAudioElement) => void;
 }
 
-export default function SimliAvatar({ state, isSpeaking, onReady }: SimliAvatarProps) {
+export default function SimliAvatar({ state, isSpeaking, onRefsReady }: SimliAvatarProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const initializedRef = useRef(false);
+  const refsPassedRef = useRef(false);
 
-  const stableOnReady = useCallback(onReady, [onReady]);
+  const stableOnRefsReady = useCallback(onRefsReady, [onRefsReady]);
 
+  // Pass DOM refs to parent (does NOT start Simli — that happens on user click)
   useEffect(() => {
-    if (videoRef.current && audioRef.current && !initializedRef.current) {
-      initializedRef.current = true;
-      stableOnReady(videoRef.current, audioRef.current);
+    if (videoRef.current && audioRef.current && !refsPassedRef.current) {
+      refsPassedRef.current = true;
+      stableOnRefsReady(videoRef.current, audioRef.current);
     }
-  }, [stableOnReady]);
+  }, [stableOnRefsReady]);
 
   const isActive = state === 'listening' || state === 'speaking' || state === 'processing';
 

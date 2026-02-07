@@ -145,8 +145,13 @@ class GeminiLiveClient {
               this.onAudio(part.inlineData.data);
             }
             if (part.text && this.onTranscript) {
-              console.log(`[Gemini][${this.sessionId}] 📝 Transcript: "${part.text.substring(0, 100)}"`);
-              this.onTranscript(part.text);
+              // Filter out Gemini's internal thinking/reasoning text
+              if (part.thought) {
+                console.log(`[Gemini][${this.sessionId}] 💭 Thinking (filtered): "${part.text.substring(0, 80)}..."`);
+              } else {
+                console.log(`[Gemini][${this.sessionId}] 📝 Transcript: "${part.text.substring(0, 100)}"`);
+                this.onTranscript(part.text);
+              }
             }
           }
         }
