@@ -34,6 +34,7 @@ app.get('/health/config', (req, res) => {
     simli_face_id: process.env.SIMLI_FACE_ID ? 'SET' : 'NOT SET',
     supabase_url: process.env.SUPABASE_URL ? 'SET' : 'NOT SET',
     node_env: process.env.NODE_ENV || 'not set',
+    n8n_webhook: process.env.N8N_WEBHOOK_URL ? 'SET' : 'NOT SET',
     backend_port: process.env.BACKEND_PORT || '3001 (default)',
   });
 });

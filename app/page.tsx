@@ -1,36 +1,20 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Background from '../components/Background';
 import Header from '../components/Header';
-import Avatar from '../components/Avatar';
-import SimliAvatar from '../components/SimliAvatar';
+import AudioOrb from '../components/AudioOrb';
 import VoiceButton from '../components/VoiceButton';
-import WaveForm from '../components/WaveForm';
 import Transcript from '../components/Transcript';
 import LeadForm from '../components/LeadForm';
 import { useVoiceSession } from '../hooks/useVoiceSession';
-import { useSimli } from '../hooks/useSimli';
 
 export default function Home() {
   const [lang, setLang] = useState<'en' | 'ar'>('en');
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [lastSessionId, setLastSessionId] = useState<string | null>(null);
 
-  // Simli avatar integration
-  const simli = useSimli();
-  const simliRefsRef = useRef<{ video: HTMLVideoElement; audio: HTMLAudioElement } | null>(null);
-
-  const simliAudioCallback = useCallback((data: Uint8Array) => {
-    simli.sendAudioData(data);
-  }, [simli]);
-
-  const voiceSessionOptions = useMemo(() =>
-    simli.isReady ? { onRawAudio: simliAudioCallback } : undefined,
-    [simli.isReady, simliAudioCallback]
-  );
-
-  const session = useVoiceSession(voiceSessionOptions);
+  const session = useVoiceSession();
 
   // Detect when session ends to show lead form
   const prevStateRef = useRef(session.state);
@@ -49,20 +33,6 @@ export default function Home() {
     }
   }, [session.state, session.sessionId]);
 
-  // Store Simli DOM refs (does NOT start Simli yet — deferred to user click)
-  const handleSimliRefsReady = useCallback((videoEl: HTMLVideoElement, audioEl: HTMLAudioElement) => {
-    simliRefsRef.current = { video: videoEl, audio: audioEl };
-  }, []);
-
-  // Wrap startSession to initialize Simli on user gesture (fixes AudioContext autoplay)
-  const handleStart = useCallback(async () => {
-    // Initialize Simli on first user click (user gesture satisfies autoplay policy)
-    if (simli.isAvailable && !simli.isReady && simliRefsRef.current) {
-      simli.initialize(simliRefsRef.current.video, simliRefsRef.current.audio);
-    }
-    session.startSession();
-  }, [simli, session]);
-
   const isAr = lang === 'ar';
 
   return (
@@ -73,22 +43,19 @@ export default function Home() {
 
       {/* Main content */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 pb-8 -mt-8">
-        {/* Avatar — Simli (video) or fallback (CSS) */}
-        <div className="mb-6">
-          {!simli.isLoading && simli.isAvailable ? (
-            <SimliAvatar
-              state={session.state}
-              isSpeaking={session.isPlaying}
-              onRefsReady={handleSimliRefsReady}
-            />
-          ) : (
-            <Avatar state={session.state} isSpeaking={session.isPlaying} />
-          )}
+        {/* 3D Audio-Reactive Orb */}
+        <div className="mb-2">
+          <AudioOrb
+            state={session.state}
+            isSpeaking={session.isPlaying}
+            getCaptureAnalyser={session.getCaptureAnalyser}
+            getPlaybackAnalyser={session.getPlaybackAnalyser}
+          />
         </div>
 
         {/* Tagline */}
         <p
-          className="text-white/60 text-base md:text-lg mb-8 text-center max-w-md font-light"
+          className="text-white/60 text-base md:text-lg mb-6 text-center max-w-md font-light"
           dir={isAr ? 'rtl' : 'ltr'}
           style={isAr ? { fontFamily: "'Tajawal', sans-serif" } : undefined}
         >
@@ -97,31 +64,11 @@ export default function Home() {
             : "Hi! I'm Pyra, your intelligent AI assistant by Pyramedia"}
         </p>
 
-        {/* Waveform visualization */}
-        <div className="mb-4 h-12 flex items-center justify-center">
-          {session.state === 'listening' && (
-            <WaveForm
-              getAnalyserData={session.getCaptureAnalyser}
-              isActive={session.isCapturing}
-              color="#ef4444"
-              barCount={32}
-            />
-          )}
-          {session.state === 'speaking' && (
-            <WaveForm
-              getAnalyserData={session.getPlaybackAnalyser}
-              isActive={session.isPlaying}
-              color="#6C3AED"
-              barCount={32}
-            />
-          )}
-        </div>
-
         {/* Voice button */}
         <div className="mb-4">
           <VoiceButton
             state={session.state}
-            onStart={handleStart}
+            onStart={session.startSession}
             onStop={session.endSession}
             onRetry={session.retry}
             lang={lang}

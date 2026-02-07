@@ -5,7 +5,7 @@ import { getWsUrl, SessionState, TranscriptEntry } from '../lib/constants';
 import { useAudioCapture } from './useAudioCapture';
 import { useAudioPlayback } from './useAudioPlayback';
 
-export function useVoiceSession(options?: { onRawAudio?: (data: Uint8Array) => void }) {
+export function useVoiceSession() {
   const [state, setState] = useState<SessionState>('idle');
   const [transcripts, setTranscripts] = useState<TranscriptEntry[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -17,7 +17,7 @@ export function useVoiceSession(options?: { onRawAudio?: (data: Uint8Array) => v
     stateRef.current = state;
   }, [state]);
 
-  const playback = useAudioPlayback(options?.onRawAudio);
+  const playback = useAudioPlayback();
   const playbackRef = useRef(playback);
   useEffect(() => { playbackRef.current = playback; }, [playback]);
 

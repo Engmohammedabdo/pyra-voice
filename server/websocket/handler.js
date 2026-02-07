@@ -2,6 +2,48 @@ const { v4: uuidv4 } = require('uuid');
 const { GeminiLiveClient } = require('./gemini');
 const { saveConversation, saveTranscripts } = require('../memory/supabase');
 
+const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
+
+async function callN8nWebhook(args) {
+  if (!N8N_WEBHOOK_URL) {
+    console.warn('[n8n] N8N_WEBHOOK_URL not configured');
+    return { error: 'Automation service not configured' };
+  }
+
+  try {
+    console.log(`[n8n] Calling webhook: ${args.action} - "${args.message}"`);
+
+    const response = await fetch(N8N_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: args.action || 'unknown',
+        message: args.message || '',
+        name: args.name || '',
+        phone: args.phone || '',
+        email: args.email || '',
+        date: args.date || '',
+        time: args.time || '',
+        subject: args.subject || '',
+        session_id: args.session_id || '',
+        lang: args.lang || 'ar',
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`[n8n] Webhook returned ${response.status}`);
+      return { error: `Automation service error (${response.status})` };
+    }
+
+    const data = await response.json();
+    console.log(`[n8n] Webhook response:`, JSON.stringify(data).substring(0, 200));
+    return data;
+  } catch (err) {
+    console.error(`[n8n] Webhook call failed:`, err.message);
+    return { error: 'Failed to reach automation service' };
+  }
+}
+
 const sessions = new Map();
 
 const MAX_MESSAGE_SIZE = 2 * 1024 * 1024; // 2MB max per WS message
@@ -114,6 +156,26 @@ async function startConversation(ws, session) {
 
   gemini.onReady = () => {
     sendToClient(ws, { type: 'ready' });
+  };
+
+  gemini.onFunctionCall = async (call) => {
+    console.log(`[Handler][${session.id}] Processing function call: ${call.name}`);
+
+    try {
+      const result = await callN8nWebhook({
+        ...call.args,
+        session_id: session.id,
+      });
+
+      // Send the result back to Gemini so it can formulate a voice response
+      const resultText = result.status || result.result || result.error || JSON.stringify(result);
+      gemini.sendToolResponse(call.name, resultText);
+
+      console.log(`[Handler][${session.id}] Function call completed: ${call.name}`);
+    } catch (err) {
+      console.error(`[Handler][${session.id}] Function call error:`, err.message);
+      gemini.sendToolResponse(call.name, 'Sorry, the action could not be completed due to a technical error.');
+    }
   };
 
   try {

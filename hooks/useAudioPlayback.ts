@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useRef, useState, useEffect } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 // Smooth audio playback: base64 PCM 24kHz -> speaker
-export function useAudioPlayback(onRawPcm?: (data: Uint8Array) => void) {
+export function useAudioPlayback() {
   const [isPlaying, setIsPlaying] = useState(false);
   const contextRef = useRef<AudioContext | null>(null);
   const queueRef = useRef<AudioBuffer[]>([]);
@@ -11,20 +11,13 @@ export function useAudioPlayback(onRawPcm?: (data: Uint8Array) => void) {
   const isPlayingRef = useRef(false);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const activeSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
-  const onRawPcmRef = useRef(onRawPcm);
-  useEffect(() => { onRawPcmRef.current = onRawPcm; }, [onRawPcm]);
-  const gainRef = useRef<GainNode | null>(null);
 
   const getContext = useCallback(() => {
     if (!contextRef.current || contextRef.current.state === 'closed') {
       contextRef.current = new AudioContext({ sampleRate: 24000 });
       const analyser = contextRef.current.createAnalyser();
       analyser.fftSize = 256;
-      const gain = contextRef.current.createGain();
-      gain.gain.value = onRawPcmRef.current ? 0.0 : 1.0;
-      gainRef.current = gain;
-      analyser.connect(gain);
-      gain.connect(contextRef.current.destination);
+      analyser.connect(contextRef.current.destination);
       analyserRef.current = analyser;
     }
     if (contextRef.current.state === 'suspended') {
@@ -67,10 +60,6 @@ export function useAudioPlayback(onRawPcm?: (data: Uint8Array) => void) {
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) {
           bytes[i] = binary.charCodeAt(i);
-        }
-        // Route raw PCM to Simli if callback provided
-        if (onRawPcmRef.current) {
-          onRawPcmRef.current(new Uint8Array(bytes));
         }
         const int16 = new Int16Array(bytes.buffer);
         const float32 = new Float32Array(int16.length);

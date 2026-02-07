@@ -41,6 +41,7 @@ class GeminiLiveClient {
     this.onTurnComplete = null;
     this.onError = null;
     this.onReady = null;
+    this.onFunctionCall = null;
   }
 
   connect() {
@@ -106,11 +107,40 @@ class GeminiLiveClient {
         systemInstruction: {
           parts: [{ text: SYSTEM_PROMPT }],
         },
+        tools: [{
+          functionDeclarations: [
+            {
+              name: 'execute_action',
+              description: 'Execute a business action through Pyramedia automation system. Use for booking meetings, sending emails, web search, searching company files, creating documents, or sending WhatsApp notifications to admin.',
+              parameters: {
+                type: 'OBJECT',
+                properties: {
+                  action: {
+                    type: 'STRING',
+                    enum: ['book_meeting', 'check_calendar', 'send_email', 'search_web', 'search_files', 'create_document', 'notify_admin'],
+                    description: 'The type of action to execute'
+                  },
+                  message: {
+                    type: 'STRING',
+                    description: 'Natural language description of what needs to be done, in the language of the conversation'
+                  },
+                  name: { type: 'STRING', description: 'Person name if relevant' },
+                  email: { type: 'STRING', description: 'Email address if relevant' },
+                  phone: { type: 'STRING', description: 'Phone number if relevant' },
+                  date: { type: 'STRING', description: 'Date in YYYY-MM-DD format if relevant' },
+                  time: { type: 'STRING', description: 'Time in HH:MM format if relevant' },
+                  subject: { type: 'STRING', description: 'Email subject if relevant' },
+                },
+                required: ['action', 'message']
+              }
+            }
+          ]
+        }]
       },
     };
 
     this.ws.send(JSON.stringify(setupMessage));
-    console.log(`[Gemini][${this.sessionId}] Setup message sent (model=${GEMINI_MODEL}, prompt=${SYSTEM_PROMPT.length} chars)`);
+    console.log(`[Gemini][${this.sessionId}] Setup message sent (model=${GEMINI_MODEL}, prompt=${SYSTEM_PROMPT.length} chars, tools=1)`);
   }
 
   _handleMessage(rawData, onSetupComplete) {
@@ -129,6 +159,26 @@ class GeminiLiveClient {
         this.isSetupComplete = true;
         if (onSetupComplete) onSetupComplete();
         if (this.onReady) this.onReady();
+        return;
+      }
+
+      // Handle tool call messages from Gemini
+      if (message.toolCall) {
+        const functionCalls = message.toolCall.functionCalls;
+        if (functionCalls && functionCalls.length > 0) {
+          for (const call of functionCalls) {
+            console.log(`[Gemini][${this.sessionId}] Function call: ${call.name}(${JSON.stringify(call.args)})`);
+            if (this.onFunctionCall) {
+              this.onFunctionCall(call);
+            }
+          }
+        }
+        return;
+      }
+
+      // Handle tool call cancellation
+      if (message.toolCallCancellation) {
+        console.log(`[Gemini][${this.sessionId}] Tool call cancelled: ${JSON.stringify(message.toolCallCancellation)}`);
         return;
       }
 
@@ -153,6 +203,12 @@ class GeminiLiveClient {
                 this.onTranscript(part.text);
               }
             }
+            if (part.functionCall) {
+              console.log(`[Gemini][${this.sessionId}] Function call (inline): ${part.functionCall.name}(${JSON.stringify(part.functionCall.args)})`);
+              if (this.onFunctionCall) {
+                this.onFunctionCall(part.functionCall);
+              }
+            }
           }
         }
 
@@ -163,12 +219,35 @@ class GeminiLiveClient {
       }
 
       // Log unexpected message types
-      if (!message.setupComplete && !message.serverContent) {
+      if (!message.setupComplete && !message.serverContent && !message.toolCall && !message.toolCallCancellation) {
         console.log(`[Gemini][${this.sessionId}] ⚠️ Unexpected message format:`, JSON.stringify(message).substring(0, 500));
       }
     } catch (err) {
       console.error(`[Gemini][${this.sessionId}] Parse error:`, err.message);
       console.error(`[Gemini][${this.sessionId}] Raw data (first 200 chars):`, rawData.toString().substring(0, 200));
+    }
+  }
+
+  sendToolResponse(functionCallId, result) {
+    if (!this.isConnected || !this.isSetupComplete) {
+      console.warn(`[Gemini][${this.sessionId}] Cannot send tool response - not connected`);
+      return;
+    }
+
+    const message = {
+      toolResponse: {
+        functionResponses: [{
+          response: { result: typeof result === 'string' ? result : JSON.stringify(result) },
+          id: functionCallId
+        }]
+      }
+    };
+
+    try {
+      this.ws.send(JSON.stringify(message));
+      console.log(`[Gemini][${this.sessionId}] Tool response sent for ${functionCallId}`);
+    } catch (err) {
+      console.error(`[Gemini][${this.sessionId}] Tool response send error:`, err.message);
     }
   }
 
