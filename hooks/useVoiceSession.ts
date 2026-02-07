@@ -4,11 +4,13 @@ import { useCallback, useRef, useState, useEffect } from 'react';
 import { getWsUrl, SessionState, TranscriptEntry } from '../lib/constants';
 import { useAudioCapture } from './useAudioCapture';
 import { useAudioPlayback } from './useAudioPlayback';
+import type { ActionEvent } from '../components/ActionToast';
 
 export function useVoiceSession() {
   const [state, setState] = useState<SessionState>('idle');
   const [transcripts, setTranscripts] = useState<TranscriptEntry[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [actionEvents, setActionEvents] = useState<ActionEvent[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const stateRef = useRef<SessionState>('idle');
@@ -81,6 +83,7 @@ export function useVoiceSession() {
     setState('connecting');
     setErrorMessage(null);
     setTranscripts([]);
+    setActionEvents([]);
 
     try {
       const wsUrl = getWsUrl();
@@ -124,6 +127,27 @@ export function useVoiceSession() {
               if (captureRef.current.isCapturing) {
                 setState('listening');
               }
+              break;
+
+            case 'action_start':
+              setActionEvents((prev) => [...prev, {
+                id: Date.now().toString() + '_start',
+                type: 'start',
+                action: msg.action || 'unknown',
+                message: msg.message || '',
+                timestamp: Date.now(),
+              }]);
+              break;
+
+            case 'action_complete':
+              setActionEvents((prev) => [...prev, {
+                id: Date.now().toString() + '_complete',
+                type: 'complete',
+                action: msg.action || 'unknown',
+                success: msg.success !== false,
+                message: msg.message || '',
+                timestamp: Date.now(),
+              }]);
               break;
 
             case 'error':
@@ -187,6 +211,7 @@ export function useVoiceSession() {
     state,
     transcripts,
     errorMessage,
+    actionEvents,
     isPlaying: playback.isPlaying,
     isCapturing: capture.isCapturing,
     sessionId: sessionIdRef.current,

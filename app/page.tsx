@@ -6,6 +6,7 @@ import Header from '../components/Header';
 import AudioOrb from '../components/AudioOrb';
 import VoiceButton from '../components/VoiceButton';
 import Transcript from '../components/Transcript';
+import ActionToast from '../components/ActionToast';
 import LeadForm from '../components/LeadForm';
 import { useVoiceSession } from '../hooks/useVoiceSession';
 
@@ -85,6 +86,9 @@ export default function Home() {
         {/* Transcript */}
         <Transcript entries={session.transcripts} lang={lang} />
       </div>
+
+      {/* Action toasts — visual feedback for webhook actions */}
+      <ActionToast events={session.actionEvents} />
 
       {/* Lead capture form — shown after conversation ends */}
       {showLeadForm && (

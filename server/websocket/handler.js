@@ -160,7 +160,11 @@ async function startConversation(ws, session) {
 
   gemini.onFunctionCall = async (call) => {
     const callId = call.id || call.name;
-    console.log(`[Handler][${session.id}] Processing function call: ${call.name} (id=${callId})`);
+    const action = call.args?.action || 'unknown';
+    console.log(`[Handler][${session.id}] Processing function call: ${call.name} (id=${callId}, action=${action})`);
+
+    // Notify frontend that an action started
+    sendToClient(ws, { type: 'action_start', action, message: call.args?.message || '' });
 
     try {
       const result = await callN8nWebhook({
@@ -172,10 +176,16 @@ async function startConversation(ws, session) {
       const resultText = result.status || result.result || result.error || JSON.stringify(result);
       gemini.sendToolResponse(callId, resultText);
 
+      // Notify frontend that action completed successfully
+      sendToClient(ws, { type: 'action_complete', action, success: true, message: resultText.substring(0, 200) });
+
       console.log(`[Handler][${session.id}] Function call completed: ${call.name} (id=${callId}) → "${resultText.substring(0, 100)}"`);
     } catch (err) {
       console.error(`[Handler][${session.id}] Function call error:`, err.message);
       gemini.sendToolResponse(callId, 'Sorry, the action could not be completed due to a technical error.');
+
+      // Notify frontend that action failed
+      sendToClient(ws, { type: 'action_complete', action, success: false, message: err.message });
     }
   };
 
