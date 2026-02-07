@@ -2,6 +2,9 @@
 
 import { useCallback, useRef, useState } from 'react';
 
+// AudioWorklet runs in a separate scope where btoa/atob are NOT available.
+// So we send the raw PCM bytes via postMessage (transferable) and do
+// the base64 encoding on the main thread instead.
 const WORKLET_CODE = `
 class PcmProcessor extends AudioWorkletProcessor {
   process(inputs) {
@@ -13,18 +16,25 @@ class PcmProcessor extends AudioWorkletProcessor {
         const s = Math.max(-1, Math.min(1, float32[i]));
         pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
       }
-      const bytes = new Uint8Array(pcm16.buffer);
-      let binary = '';
-      for (let i = 0; i < bytes.length; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      this.port.postMessage(btoa(binary));
+      // Send raw bytes to main thread (transferable for zero-copy)
+      const buffer = pcm16.buffer.slice(0);
+      this.port.postMessage(buffer, [buffer]);
     }
     return true;
   }
 }
 registerProcessor('pcm-processor', PcmProcessor);
 `;
+
+// Convert ArrayBuffer to base64 string (runs on main thread where btoa is available)
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
 
 // PCM 16-bit, 16kHz mono capture with AudioWorklet (fallback to ScriptProcessor)
 export function useAudioCapture(onAudioChunk: (base64: string) => void) {
@@ -73,11 +83,16 @@ export function useAudioCapture(onAudioChunk: (base64: string) => void) {
         processorRef.current = worklet;
 
         worklet.port.onmessage = (e: MessageEvent) => {
-          onChunkRef.current(e.data);
+          // e.data is an ArrayBuffer (raw PCM bytes from worklet)
+          // Convert to base64 here on main thread where btoa is available
+          const base64 = arrayBufferToBase64(e.data);
+          onChunkRef.current(base64);
         };
 
         source.connect(worklet);
         worklet.connect(context.destination);
+
+        console.log('[AudioCapture] Using AudioWorklet ✅');
       } catch {
         console.warn('[AudioCapture] AudioWorklet unavailable, using ScriptProcessor fallback');
         const processor = context.createScriptProcessor(4096, 1, 1);
@@ -90,12 +105,8 @@ export function useAudioCapture(onAudioChunk: (base64: string) => void) {
             const s = Math.max(-1, Math.min(1, inputData[i]));
             pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
           }
-          const bytes = new Uint8Array(pcm16.buffer);
-          let binary = '';
-          for (let i = 0; i < bytes.length; i++) {
-            binary += String.fromCharCode(bytes[i]);
-          }
-          onChunkRef.current(btoa(binary));
+          const base64 = arrayBufferToBase64(pcm16.buffer);
+          onChunkRef.current(base64);
         };
 
         source.connect(processor);
