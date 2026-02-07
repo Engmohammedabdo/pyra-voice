@@ -1,6 +1,6 @@
 /**
  * Combined server: Next.js frontend + WebSocket proxy on same port.
- * Uses health check polling instead of a fixed timeout to wait for backend.
+ * Uses health check polling to wait for backend readiness.
  */
 const http = require('http');
 const httpProxy = require('http-proxy');
@@ -18,26 +18,44 @@ require('./server/index.js');
 function waitForBackend(port, maxAttempts = 30) {
   return new Promise((resolve, reject) => {
     let attempts = 0;
+    let settled = false;
+
     const check = () => {
+      if (settled) return;
       attempts++;
+
       const req = http.get(`http://localhost:${port}/health`, (res) => {
-        if (res.statusCode === 200) {
+        // Consume the response body to free resources
+        res.resume();
+        if (!settled && res.statusCode === 200) {
+          settled = true;
           console.log(`[Combined] Backend ready after ${attempts} attempt(s)`);
           resolve();
-        } else {
+        } else if (!settled) {
           retry();
         }
       });
-      req.on('error', retry);
-      req.setTimeout(1000, retry);
+
+      req.on('error', () => {
+        if (!settled) retry();
+      });
+
+      req.setTimeout(1000, () => {
+        req.destroy();
+        if (!settled) retry();
+      });
     };
+
     const retry = () => {
+      if (settled) return;
       if (attempts >= maxAttempts) {
+        settled = true;
         reject(new Error(`Backend not ready after ${maxAttempts} attempts`));
       } else {
         setTimeout(check, 500);
       }
     };
+
     check();
   });
 }

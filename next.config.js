@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  output: 'standalone',
   // Proxy API requests to backend (HTTP only, WebSocket handled by server.js)
   async rewrites() {
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
