@@ -1,8 +1,12 @@
 node_modules
 .next
 .git
-docker-compose.yml
 .env
 .env.local
-PROJECT-PLAN.md
-TECHNICAL-ANALYSIS.md
+.env.production
+*.md
+!pyra-voice-prompt.md
+!README.md
+docker-compose.yml
+.claude
+temp_clone

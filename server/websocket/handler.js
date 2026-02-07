@@ -2,8 +2,9 @@ const { v4: uuidv4 } = require('uuid');
 const { GeminiLiveClient } = require('./gemini');
 const { saveConversation } = require('../memory/supabase');
 
-// Active sessions map
 const sessions = new Map();
+
+const MAX_MESSAGE_SIZE = 2 * 1024 * 1024; // 2MB max per WS message
 
 function handleConnection(ws) {
   const sessionId = uuidv4();
@@ -18,12 +19,16 @@ function handleConnection(ws) {
 
   console.log(`[Handler][${sessionId}] Session created`);
 
-  // Send session ID to client
   sendToClient(ws, { type: 'session', sessionId });
 
   ws.on('message', async (data) => {
     try {
-      const message = JSON.parse(data.toString());
+      const raw = data.toString();
+      if (raw.length > MAX_MESSAGE_SIZE) {
+        sendToClient(ws, { type: 'error', message: 'Message too large' });
+        return;
+      }
+      const message = JSON.parse(raw);
       await handleMessage(ws, session, message);
     } catch (err) {
       console.error(`[Handler][${sessionId}] Message parse error:`, err.message);
@@ -43,16 +48,14 @@ function handleConnection(ws) {
 }
 
 async function handleMessage(ws, session, message) {
-  const { id: sessionId } = session;
-
   switch (message.type) {
     case 'start':
       await startConversation(ws, session);
       break;
 
     case 'audio':
-      if (!message.data) {
-        sendToClient(ws, { type: 'error', message: 'Missing audio data' });
+      if (!message.data || typeof message.data !== 'string') {
+        sendToClient(ws, { type: 'error', message: 'Missing or invalid audio data' });
         return;
       }
       if (session.gemini) {
@@ -64,31 +67,28 @@ async function handleMessage(ws, session, message) {
       break;
 
     case 'end':
-      console.log(`[Handler][${sessionId}] Client ended conversation`);
+      console.log(`[Handler][${session.id}] Client ended conversation`);
       await endConversation(session);
       sendToClient(ws, { type: 'ended' });
       break;
 
     default:
-      console.warn(`[Handler][${sessionId}] Unknown message type: ${message.type}`);
+      console.warn(`[Handler][${session.id}] Unknown message type: ${message.type}`);
   }
 }
 
 async function startConversation(ws, session) {
-  const { id: sessionId } = session;
-
   if (session.gemini) {
-    console.warn(`[Handler][${sessionId}] Already has active Gemini connection`);
+    console.warn(`[Handler][${session.id}] Already has active Gemini connection`);
     sendToClient(ws, { type: 'ready' });
     return;
   }
 
-  console.log(`[Handler][${sessionId}] Starting Gemini connection...`);
+  console.log(`[Handler][${session.id}] Starting Gemini connection...`);
   session.startedAt = new Date();
 
-  const gemini = new GeminiLiveClient(sessionId);
+  const gemini = new GeminiLiveClient(session.id);
 
-  // Wire up Gemini events to client
   gemini.onAudio = (base64Audio) => {
     session.audioChunksSent++;
     sendToClient(ws, { type: 'audio', data: base64Audio });
@@ -113,34 +113,31 @@ async function startConversation(ws, session) {
   try {
     await gemini.connect();
     session.gemini = gemini;
-    console.log(`[Handler][${sessionId}] Gemini connected and ready`);
+    console.log(`[Handler][${session.id}] Gemini connected and ready`);
   } catch (err) {
-    console.error(`[Handler][${sessionId}] Gemini connection failed:`, err.message);
+    console.error(`[Handler][${session.id}] Gemini connection failed:`, err.message);
     sendToClient(ws, { type: 'error', message: 'Failed to connect to AI service' });
   }
 }
 
 async function endConversation(session) {
-  const { id: sessionId, startedAt } = session;
-
   if (session.gemini) {
     session.gemini.close();
     session.gemini = null;
   }
 
-  // Save conversation metadata to Supabase
-  if (startedAt) {
+  if (session.startedAt) {
     try {
       await saveConversation({
-        sessionId,
-        startedAt: startedAt.toISOString(),
+        sessionId: session.id,
+        startedAt: session.startedAt.toISOString(),
         endedAt: new Date().toISOString(),
         audioChunksReceived: session.audioChunksReceived,
         audioChunksSent: session.audioChunksSent,
       });
-      console.log(`[Handler][${sessionId}] Conversation saved`);
+      console.log(`[Handler][${session.id}] Conversation saved`);
     } catch (err) {
-      console.error(`[Handler][${sessionId}] Failed to save conversation:`, err.message);
+      console.error(`[Handler][${session.id}] Failed to save conversation:`, err.message);
     }
   }
 
@@ -152,7 +149,7 @@ async function endConversation(session) {
 function cleanup(session) {
   endConversation(session).catch(() => {});
   sessions.delete(session.id);
-  console.log(`[Handler][${session.id}] Session cleaned up. Active sessions: ${sessions.size}`);
+  console.log(`[Handler][${session.id}] Session cleaned up. Active: ${sessions.size}`);
 }
 
 function sendToClient(ws, data) {

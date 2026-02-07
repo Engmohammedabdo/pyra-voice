@@ -4,10 +4,10 @@ const path = require('path');
 
 const GEMINI_MODEL = 'models/gemini-2.5-flash-native-audio-latest';
 
-// Load system prompt — try multiple locations for Docker + local dev
+// Load system prompt - try multiple locations for Docker + local dev
 const PROMPT_PATHS = [
-  path.join(__dirname, '..', '..', 'pyra-voice-prompt.md'),       // root (Docker + local)
-  '/home/node/openclaw/pyra-voice-prompt.md',                      // absolute fallback
+  path.join(__dirname, '..', '..', 'pyra-voice-prompt.md'),
+  path.join(__dirname, '..', '..', 'prompt.md'),
 ];
 
 let SYSTEM_PROMPT = '';
@@ -23,12 +23,16 @@ if (!SYSTEM_PROMPT) {
   console.warn('[Gemini] Could not load pyra-voice-prompt.md, using fallback prompt');
 }
 
+const MAX_AUDIO_CHUNK_SIZE = 1024 * 1024; // 1MB max per chunk
+
 class GeminiLiveClient {
   constructor(sessionId) {
     this.sessionId = sessionId;
     this.ws = null;
     this.isConnected = false;
     this.isSetupComplete = false;
+    this._setupTimeout = null;
+    this._settled = false;
     this.onAudio = null;
     this.onTranscript = null;
     this.onTurnComplete = null;
@@ -48,6 +52,13 @@ class GeminiLiveClient {
 
       this.ws = new WebSocket(url);
 
+      const settle = (fn, value) => {
+        if (this._settled) return;
+        this._settled = true;
+        clearTimeout(this._setupTimeout);
+        fn(value);
+      };
+
       this.ws.on('open', () => {
         console.log(`[Gemini][${this.sessionId}] WebSocket connected`);
         this.isConnected = true;
@@ -55,32 +66,25 @@ class GeminiLiveClient {
       });
 
       this.ws.on('message', (data) => {
-        this._handleMessage(data);
+        this._handleMessage(data, (result) => settle(resolve, result));
       });
 
       this.ws.on('close', (code, reason) => {
         console.log(`[Gemini][${this.sessionId}] WebSocket closed: ${code} ${reason}`);
         this.isConnected = false;
         this.isSetupComplete = false;
+        settle(reject, new Error(`Gemini WebSocket closed: ${code}`));
       });
 
       this.ws.on('error', (err) => {
         console.error(`[Gemini][${this.sessionId}] WebSocket error:`, err.message);
         if (this.onError) this.onError(err.message);
-        if (!this.isConnected) reject(err);
+        settle(reject, err);
       });
 
-      // Resolve once setup acknowledgment comes back
-      const setupTimeout = setTimeout(() => {
-        if (!this.isSetupComplete) {
-          reject(new Error('Gemini setup timeout'));
-        }
+      this._setupTimeout = setTimeout(() => {
+        settle(reject, new Error('Gemini setup timeout (15s)'));
       }, 15000);
-
-      this._setupResolve = () => {
-        clearTimeout(setupTimeout);
-        resolve();
-      };
     });
   }
 
@@ -101,49 +105,36 @@ class GeminiLiveClient {
     console.log(`[Gemini][${this.sessionId}] Setup message sent`);
   }
 
-  _handleMessage(rawData) {
+  _handleMessage(rawData, onSetupComplete) {
     try {
       const message = JSON.parse(rawData.toString());
 
-      // Setup complete acknowledgment
       if (message.setupComplete) {
         console.log(`[Gemini][${this.sessionId}] Setup complete`);
         this.isSetupComplete = true;
-        if (this._setupResolve) {
-          this._setupResolve();
-          this._setupResolve = null;
-        }
+        if (onSetupComplete) onSetupComplete();
         if (this.onReady) this.onReady();
         return;
       }
 
-      // Server content (audio response)
       if (message.serverContent) {
         const { modelTurn, turnComplete } = message.serverContent;
 
         if (modelTurn && modelTurn.parts) {
           for (const part of modelTurn.parts) {
-            // Audio data
-            if (part.inlineData) {
-              if (this.onAudio) {
-                this.onAudio(part.inlineData.data);
-              }
+            if (part.inlineData && this.onAudio) {
+              this.onAudio(part.inlineData.data);
             }
-            // Text transcript (if available)
-            if (part.text) {
-              if (this.onTranscript) {
-                this.onTranscript(part.text);
-              }
+            if (part.text && this.onTranscript) {
+              this.onTranscript(part.text);
             }
           }
         }
 
-        if (turnComplete) {
-          if (this.onTurnComplete) this.onTurnComplete();
+        if (turnComplete && this.onTurnComplete) {
+          this.onTurnComplete();
         }
       }
-
-      // Tool calls or other messages can be handled here in the future
     } catch (err) {
       console.error(`[Gemini][${this.sessionId}] Parse error:`, err.message);
     }
@@ -151,7 +142,11 @@ class GeminiLiveClient {
 
   sendAudio(base64PcmData) {
     if (!this.isConnected || !this.isSetupComplete) {
-      console.warn(`[Gemini][${this.sessionId}] Not ready, dropping audio chunk`);
+      return;
+    }
+
+    if (typeof base64PcmData !== 'string' || base64PcmData.length > MAX_AUDIO_CHUNK_SIZE) {
+      console.warn(`[Gemini][${this.sessionId}] Invalid audio chunk, dropping`);
       return;
     }
 
@@ -174,6 +169,7 @@ class GeminiLiveClient {
   }
 
   close() {
+    clearTimeout(this._setupTimeout);
     if (this.ws) {
       console.log(`[Gemini][${this.sessionId}] Closing connection`);
       this.ws.close();

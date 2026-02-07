@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react';
 
-// Smooth audio playback: base64 PCM 24kHz → speaker
+// Smooth audio playback: base64 PCM 24kHz -> speaker
 export function useAudioPlayback() {
   const [isPlaying, setIsPlaying] = useState(false);
   const contextRef = useRef<AudioContext | null>(null);
@@ -10,6 +10,7 @@ export function useAudioPlayback() {
   const nextTimeRef = useRef(0);
   const isPlayingRef = useRef(false);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const activeSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
 
   const getContext = useCallback(() => {
     if (!contextRef.current || contextRef.current.state === 'closed') {
@@ -39,8 +40,11 @@ export function useAudioPlayback() {
       source.start(startTime);
       nextTimeRef.current = startTime + buffer.duration;
 
+      activeSourcesRef.current.add(source);
+
       source.onended = () => {
-        if (queueRef.current.length === 0 && ctx.currentTime >= nextTimeRef.current - 0.05) {
+        activeSourcesRef.current.delete(source);
+        if (queueRef.current.length === 0 && activeSourcesRef.current.size === 0) {
           isPlayingRef.current = false;
           setIsPlaying(false);
         }
@@ -52,19 +56,16 @@ export function useAudioPlayback() {
     (base64Pcm: string) => {
       try {
         const ctx = getContext();
-        // Decode base64 → binary
         const binary = atob(base64Pcm);
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) {
           bytes[i] = binary.charCodeAt(i);
         }
-        // Int16 → Float32
         const int16 = new Int16Array(bytes.buffer);
         const float32 = new Float32Array(int16.length);
         for (let i = 0; i < int16.length; i++) {
           float32[i] = int16[i] / 32768;
         }
-        // Create AudioBuffer
         const audioBuffer = ctx.createBuffer(1, float32.length, 24000);
         audioBuffer.copyToChannel(float32, 0);
         queueRef.current.push(audioBuffer);
@@ -86,8 +87,15 @@ export function useAudioPlayback() {
     nextTimeRef.current = 0;
     isPlayingRef.current = false;
     setIsPlaying(false);
+
+    // Stop all active sources before closing context
+    activeSourcesRef.current.forEach((source) => {
+      try { source.stop(); } catch { /* already stopped */ }
+    });
+    activeSourcesRef.current.clear();
+
     if (contextRef.current && contextRef.current.state !== 'closed') {
-      contextRef.current.close();
+      contextRef.current.close().catch(() => {});
       contextRef.current = null;
       analyserRef.current = null;
     }

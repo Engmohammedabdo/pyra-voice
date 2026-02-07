@@ -2,14 +2,40 @@
 
 import { useCallback, useRef, useState } from 'react';
 
-// PCM 16-bit, 16kHz mono capture
+const WORKLET_CODE = `
+class PcmProcessor extends AudioWorkletProcessor {
+  process(inputs) {
+    const input = inputs[0];
+    if (input.length > 0 && input[0].length > 0) {
+      const float32 = input[0];
+      const pcm16 = new Int16Array(float32.length);
+      for (let i = 0; i < float32.length; i++) {
+        const s = Math.max(-1, Math.min(1, float32[i]));
+        pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+      }
+      const bytes = new Uint8Array(pcm16.buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      this.port.postMessage(btoa(binary));
+    }
+    return true;
+  }
+}
+registerProcessor('pcm-processor', PcmProcessor);
+`;
+
+// PCM 16-bit, 16kHz mono capture with AudioWorklet (fallback to ScriptProcessor)
 export function useAudioCapture(onAudioChunk: (base64: string) => void) {
   const [isCapturing, setIsCapturing] = useState(false);
   const streamRef = useRef<MediaStream | null>(null);
   const contextRef = useRef<AudioContext | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const processorRef = useRef<AudioWorkletNode | ScriptProcessorNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const onChunkRef = useRef(onAudioChunk);
+  onChunkRef.current = onAudioChunk;
 
   const start = useCallback(async () => {
     try {
@@ -25,55 +51,69 @@ export function useAudioCapture(onAudioChunk: (base64: string) => void) {
 
       streamRef.current = stream;
 
-      // Create audio context at 16kHz
       const context = new AudioContext({ sampleRate: 16000 });
       contextRef.current = context;
 
       const source = context.createMediaStreamSource(stream);
       sourceRef.current = source;
 
-      // Create analyser for waveform visualization
       const analyser = context.createAnalyser();
       analyser.fftSize = 256;
       analyserRef.current = analyser;
       source.connect(analyser);
 
-      // Use ScriptProcessorNode (widely supported) for raw PCM
-      const processor = context.createScriptProcessor(4096, 1, 1);
-      processorRef.current = processor;
+      // Try AudioWorklet first (runs off main thread), fall back to ScriptProcessor
+      try {
+        const blob = new Blob([WORKLET_CODE], { type: 'application/javascript' });
+        const url = URL.createObjectURL(blob);
+        await context.audioWorklet.addModule(url);
+        URL.revokeObjectURL(url);
 
-      processor.onaudioprocess = (e) => {
-        const inputData = e.inputBuffer.getChannelData(0);
-        // Convert Float32 → Int16 PCM
-        const pcm16 = new Int16Array(inputData.length);
-        for (let i = 0; i < inputData.length; i++) {
-          const s = Math.max(-1, Math.min(1, inputData[i]));
-          pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-        }
-        // Convert to base64
-        const bytes = new Uint8Array(pcm16.buffer);
-        let binary = '';
-        for (let i = 0; i < bytes.length; i++) {
-          binary += String.fromCharCode(bytes[i]);
-        }
-        const base64 = btoa(binary);
-        onAudioChunk(base64);
-      };
+        const worklet = new AudioWorkletNode(context, 'pcm-processor');
+        processorRef.current = worklet;
 
-      source.connect(processor);
-      processor.connect(context.destination);
+        worklet.port.onmessage = (e: MessageEvent) => {
+          onChunkRef.current(e.data);
+        };
+
+        source.connect(worklet);
+        worklet.connect(context.destination);
+      } catch {
+        console.warn('[AudioCapture] AudioWorklet unavailable, using ScriptProcessor fallback');
+        const processor = context.createScriptProcessor(4096, 1, 1);
+        processorRef.current = processor;
+
+        processor.onaudioprocess = (e: AudioProcessingEvent) => {
+          const inputData = e.inputBuffer.getChannelData(0);
+          const pcm16 = new Int16Array(inputData.length);
+          for (let i = 0; i < inputData.length; i++) {
+            const s = Math.max(-1, Math.min(1, inputData[i]));
+            pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+          }
+          const bytes = new Uint8Array(pcm16.buffer);
+          let binary = '';
+          for (let i = 0; i < bytes.length; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          onChunkRef.current(btoa(binary));
+        };
+
+        source.connect(processor);
+        processor.connect(context.destination);
+      }
+
       setIsCapturing(true);
     } catch (err) {
       console.error('Mic capture error:', err);
       throw err;
     }
-  }, [onAudioChunk]);
+  }, []);
 
   const stop = useCallback(() => {
     processorRef.current?.disconnect();
     sourceRef.current?.disconnect();
     analyserRef.current?.disconnect();
-    contextRef.current?.close();
+    contextRef.current?.close().catch(() => {});
     streamRef.current?.getTracks().forEach((t) => t.stop());
     processorRef.current = null;
     sourceRef.current = null;

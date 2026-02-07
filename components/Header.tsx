@@ -1,19 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-
 interface HeaderProps {
-  onLanguageChange?: (lang: 'en' | 'ar') => void;
+  lang: 'en' | 'ar';
+  onLanguageChange: (lang: 'en' | 'ar') => void;
 }
 
-export default function Header({ onLanguageChange }: HeaderProps) {
-  const [lang, setLang] = useState<'en' | 'ar'>('en');
-
-  const toggle = (newLang: 'en' | 'ar') => {
-    setLang(newLang);
-    onLanguageChange?.(newLang);
-  };
-
+export default function Header({ lang, onLanguageChange }: HeaderProps) {
   return (
     <header className="relative z-10 flex items-center justify-between px-6 py-4 md:px-10">
       {/* Logo */}
@@ -29,7 +21,7 @@ export default function Header({ onLanguageChange }: HeaderProps) {
       {/* Language toggle */}
       <div className="flex items-center gap-1 bg-white/5 backdrop-blur-md rounded-full p-1 border border-white/10">
         <button
-          onClick={() => toggle('ar')}
+          onClick={() => onLanguageChange('ar')}
           className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-300 ${
             lang === 'ar'
               ? 'bg-brand-primary text-white shadow-lg shadow-brand-primary/30'
@@ -39,7 +31,7 @@ export default function Header({ onLanguageChange }: HeaderProps) {
           AR
         </button>
         <button
-          onClick={() => toggle('en')}
+          onClick={() => onLanguageChange('en')}
           className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-300 ${
             lang === 'en'
               ? 'bg-brand-primary text-white shadow-lg shadow-brand-primary/30'

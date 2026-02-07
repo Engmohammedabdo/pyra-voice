@@ -61,7 +61,7 @@ setInterval(() => {
   console.log(`[Server] Active WebSocket connections: ${wss.clients.size}`);
 }, 60000);
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.BACKEND_PORT || 3001;
 server.listen(PORT, () => {
   console.log(`[Server] Pyra Voice server running on port ${PORT}`);
   console.log(`[Server] Health: http://localhost:${PORT}/health`);

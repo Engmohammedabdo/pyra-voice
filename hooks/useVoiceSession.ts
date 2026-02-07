@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useRef, useState, useEffect } from 'react';
-import { WS_URL, SessionState, TranscriptEntry } from '../lib/constants';
+import { getWsUrl, SessionState, TranscriptEntry } from '../lib/constants';
 import { useAudioCapture } from './useAudioCapture';
 import { useAudioPlayback } from './useAudioPlayback';
 
@@ -13,12 +13,13 @@ export function useVoiceSession() {
   const sessionIdRef = useRef<string | null>(null);
   const stateRef = useRef<SessionState>('idle');
 
-  // Keep stateRef in sync
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
 
   const playback = useAudioPlayback();
+  const playbackRef = useRef(playback);
+  useEffect(() => { playbackRef.current = playback; }, [playback]);
 
   const sendAudioChunk = useCallback((base64: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -30,9 +31,14 @@ export function useVoiceSession() {
   const captureRef = useRef(capture);
   useEffect(() => { captureRef.current = capture; }, [capture]);
 
-  const addTranscript = useCallback((role: 'user' | 'assistant', text: string) => {
+  const lastTurnRoleRef = useRef<'user' | 'assistant' | null>(null);
+
+  const addTranscript = useCallback((role: 'user' | 'assistant', text: string, newTurn = false) => {
     setTranscripts((prev) => {
-      if (prev.length > 0 && prev[prev.length - 1].role === role) {
+      const forceNew = newTurn || (role !== lastTurnRoleRef.current);
+      lastTurnRoleRef.current = role;
+
+      if (!forceNew && prev.length > 0 && prev[prev.length - 1].role === role) {
         const updated = [...prev];
         updated[updated.length - 1] = {
           ...updated[updated.length - 1],
@@ -64,9 +70,10 @@ export function useVoiceSession() {
       wsRef.current = null;
     }
     captureRef.current.stop();
-    playback.flush();
+    playbackRef.current.flush();
     sessionIdRef.current = null;
-  }, [playback]);
+    lastTurnRoleRef.current = null;
+  }, []);
 
   const startSession = useCallback(async () => {
     if (wsRef.current) return;
@@ -76,7 +83,8 @@ export function useVoiceSession() {
     setTranscripts([]);
 
     try {
-      const ws = new WebSocket(WS_URL);
+      const wsUrl = getWsUrl();
+      const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -102,7 +110,7 @@ export function useVoiceSession() {
 
             case 'audio':
               if (stateRef.current !== 'speaking') setState('speaking');
-              playback.enqueue(msg.data);
+              playbackRef.current.enqueue(msg.data);
               break;
 
             case 'transcript':
@@ -112,6 +120,7 @@ export function useVoiceSession() {
               break;
 
             case 'turn_complete':
+              lastTurnRoleRef.current = null;
               if (captureRef.current.isCapturing) {
                 setState('listening');
               }
@@ -137,19 +146,19 @@ export function useVoiceSession() {
         setErrorMessage('Connection error. Please check your network and try again.');
       };
 
-      ws.onclose = (event) => {
+      ws.onclose = () => {
         wsRef.current = null;
         captureRef.current.stop();
-        playback.flush();
+        playbackRef.current.flush();
         if (stateRef.current !== 'error' && stateRef.current !== 'idle') {
           setState('idle');
         }
       };
-    } catch (err) {
+    } catch {
       setState('error');
       setErrorMessage('Failed to connect. Please try again.');
     }
-  }, [playback, addTranscript, cleanup]);
+  }, [addTranscript, cleanup]);
 
   const endSession = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -169,10 +178,10 @@ export function useVoiceSession() {
     setTranscripts([]);
   }, []);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => { cleanup(); };
-  }, [cleanup]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return {
     state,

@@ -19,7 +19,7 @@ export default function Home() {
     <main className="relative min-h-screen flex flex-col" dir={isAr ? 'rtl' : 'ltr'}>
       <Background />
 
-      <Header onLanguageChange={setLang} />
+      <Header lang={lang} onLanguageChange={setLang} />
 
       {/* Main content */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 pb-8 -mt-8">

@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  pyra-voice:
+    build: .
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - BACKEND_PORT=3001
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - SIMLI_API_KEY=${SIMLI_API_KEY:-}
+      - SIMLI_FACE_ID=${SIMLI_FACE_ID:-}
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY:-}
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
