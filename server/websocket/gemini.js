@@ -98,6 +98,25 @@ class GeminiLiveClient {
   }
 
   _sendSetup() {
+    // Inject current date/time in Dubai timezone so Pyra always knows "today"
+    const now = new Date();
+    const dubaiFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Dubai',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+      weekday: 'long',
+    });
+    const parts = dubaiFormatter.formatToParts(now);
+    const get = (type) => parts.find(p => p.type === type)?.value || '';
+    const dubaiDate = `${get('year')}-${get('month')}-${get('day')}`;
+    const dubaiTime = `${get('hour')}:${get('minute')}`;
+    const dubaiDay = get('weekday');
+
+    const timeContext = `\n\n[CURRENT CONTEXT]\nToday: ${dubaiDay}, ${dubaiDate}\nCurrent time (Dubai): ${dubaiTime}\nTimezone: Asia/Dubai (GST, UTC+4)\n`;
+
+    const fullPrompt = SYSTEM_PROMPT + timeContext;
+    console.log(`[Gemini][${this.sessionId}] Injecting time context: ${dubaiDay} ${dubaiDate} ${dubaiTime} Dubai`);
+
     const setupMessage = {
       setup: {
         model: GEMINI_MODEL,
@@ -105,7 +124,7 @@ class GeminiLiveClient {
           responseModalities: ['AUDIO'],
         },
         systemInstruction: {
-          parts: [{ text: SYSTEM_PROMPT }],
+          parts: [{ text: fullPrompt }],
         },
         tools: [{
           functionDeclarations: [
@@ -141,7 +160,7 @@ class GeminiLiveClient {
     };
 
     this.ws.send(JSON.stringify(setupMessage));
-    console.log(`[Gemini][${this.sessionId}] Setup message sent (model=${GEMINI_MODEL}, prompt=${SYSTEM_PROMPT.length} chars, tools=1)`);
+    console.log(`[Gemini][${this.sessionId}] Setup message sent (model=${GEMINI_MODEL}, prompt=${fullPrompt.length} chars, tools=1)`);
   }
 
   _handleMessage(rawData, onSetupComplete) {
